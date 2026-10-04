@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="only light">
+<meta name="theme-color" content="#06363f">
+<title>Payer & vérifier – e-Services de la Mairie de Libreville</title>
+<meta name="description" content="Payer en ligne les taxes municipales de Libreville (vignettes de transport, droits de place, domaine public, publicité) et vérifier une vignette à QR code.">
+<meta property="og:title" content="Payer & vérifier – e-Services de la Mairie de Libreville">
+<meta property="og:description" content="Payer en ligne les taxes municipales de Libreville (vignettes de transport, droits de place, domaine public, publicité) et vérifier une vignette à QR code.">
+<meta property="og:image" content="assets/img/vignettes-lancement.jpg">
+<link rel="icon" href="assets/img/logo-lbv.svg">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="assets/img/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body data-page="payer">
+<div class="flagbar"></div>
+<div id="site-header"></div>
+
+
+<section class="page-hero">
+  <img class="bg" src="assets/img/vignette-0001.jpg" alt="" style="object-position:center 30%">
+  <div class="wrap">
+    <p class="crumbs"><a href="index.html">Accueil</a> › Payer & vérifier</p>
+    <span class="eyebrow">e-Services de la commune</span>
+    <h1>Payer une taxe, vérifier une vignette</h1>
+    <p>Vignettes de transport à QR code, droits de place des marchés, occupation du domaine public : payez par Airtel Money, Moov Money ou carte, recevez votre reçu immédiatement. Plus d'intermédiaire, plus d'espèces.</p>
+  </div>
+</section>
+
+<section id="payer">
+  <div class="wrap">
+    <div class="svc-tabs rv"><a href="#payer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7H5a2 2 0 010-4h13v4M3 5v14a2 2 0 002 2h15V7"/></svg>Payer une taxe</a><a href="#verifier"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>Vérifier une vignette</a><a href="#commercants"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l1.5-5h15L21 9M3 9h18v2a3 3 0 01-6 0 3 3 0 01-6 0 3 3 0 01-6 0zM5 13v8h14v-8"/></svg>Commerçants & transporteurs</a></div>
+    <div class="svc-cols">
+      <form class="panel form" id="tax-form" novalidate>
+        <h3 style="color:var(--navy)">1. Que payez-vous ?</h3>
+        <div class="taxgrid" id="taxgrid"></div>
+        <h3 style="color:var(--navy)">2. Vos informations</h3>
+        <div class="field"><label for="tref" id="tref-l">Référence</label><input id="tref" name="ref" required style="text-transform:uppercase"></div>
+        <div class="row"><div class="field"><label for="tnom">Nom et prénom (ou nom du commerce)</label><input id="tnom" name="nom" required autocomplete="name"></div><div class="field"><label for="ttel">Téléphone</label><input id="ttel" name="tel" type="tel" required placeholder="074 00 00 00" autocomplete="tel"></div></div>
+        <div class="row"><div class="field"><label for="tarr">Arrondissement</label><select id="tarr" name="arr"></select></div><div class="field" id="tqte" hidden><label for="tq" id="tqte-l">Nombre de jours</label><input id="tq" name="qte" type="number" min="1" max="12" value="1"></div></div>
+        <h3 style="color:var(--navy)">3. Paiement</h3>
+        <div class="mpay" id="mpay"></div>
+        <p id="ttot" style="margin-bottom:.8rem"></p>
+        <button class="btn btn-orange" type="submit" style="justify-content:center">Payer maintenant</button>
+        <p class="imgnote">Tarifs de démonstration, à fixer par délibération du conseil municipal. En production, le paiement est raccordé à la plateforme e-Tax de la commune et à MADIGIPAIE.</p>
+      </form>
+      <div>
+        <span class="eyebrow rv">Comment ça marche</span>
+        <h2 class="rv d1" style="font-size:clamp(1.5rem,2.8vw,2.1rem);color:var(--navy);margin:.6rem 0 1rem">Trois gestes, un reçu officiel</h2>
+        <div class="howto rv d2">
+          <div><b class="n">1</b><p><strong>Choisissez la taxe</strong> et indiquez la référence : immatriculation du véhicule, numéro d'emplacement au marché ou d'autorisation.</p></div>
+          <div><b class="n">2</b><p><strong>Validez le paiement</strong> sur votre téléphone (Airtel Money, Moov Money) ou par carte bancaire.</p></div>
+          <div><b class="n">3</b><p><strong>Recevez votre reçu</strong> avec QR code, et votre vignette numérique en PDF s'il s'agit d'un véhicule. Le paiement apparaît aussitôt dans les recettes de la commune.</p></div>
+        </div>
+        <div class="alert-box ok rv d3" style="margin-top:1rem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg><span>Chaque franc payé est tracé : quittance numérotée, moyen de paiement, date et heure. C'est la fin du « racket » et des reçus perdus.</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="bg-white" id="verifier">
+  <div class="wrap svc-cols">
+    <div>
+      <span class="eyebrow rv">Vignettes de transport</span>
+      <h2 class="rv d1" style="font-size:clamp(1.6rem,3vw,2.3rem);color:var(--navy);margin:.6rem 0 1rem">Ce taxi est-il en règle ?</h2>
+      <p class="lead-p rv d2">Depuis le 28 mai 2026, taxis, taxis-bus et véhicules de transport de marchandises portent une vignette à QR code, lancée avec Moov Africa Gabon Télécom. Scannez-la avec votre téléphone ou saisissez son numéro.</p>
+      <form class="form rv d2" id="vig-form" style="margin-top:1.2rem"><div class="field"><label for="vq">Numéro de vignette ou immatriculation</label><input id="vq" name="q" required placeholder="Ex. LBV-TX-0001 ou GA 0001 LV" style="text-transform:uppercase"></div>
+        <div style="display:flex;gap:.6rem;flex-wrap:wrap"><button class="btn btn-navy">Vérifier</button><button class="btn btn-orange" type="button" id="scan-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg> Scanner avec la caméra</button></div>
+        <p class="demo-hint" id="vig-demo"></p>
+      </form>
+      <div class="scanbox" id="scanbox" hidden></div>
+    </div>
+    <div class="vres" id="vig-out"><div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM17 20h4M20 17v4"/></svg><p>Le résultat de la vérification s'affichera ici, avec la date de validité et le dernier contrôle.</p></div></div>
+  </div>
+</section>
+
+<section class="bg-navy" id="commercants">
+  <div class="wrap">
+    <div class="center"><div class="sec-head"><span class="eyebrow">Commerçants & transporteurs</span><h2>Une mairie qui vient à vous, téléphone en main</h2><p>Les outils lancés par la commune en 2025 et 2026, réunis au même endroit.</p></div></div>
+    <div class="steps3">
+      <div class="rv"><span class="n">1</span><h4>Marchés : e-Tax</h4><p>Depuis le 12 juin 2026 au grand marché de Mont-Bouët, les droits de place se paient par téléphone, avec un reçu à chaque paiement. Le dispositif a vocation à s'étendre aux autres marchés.</p></div>
+      <div class="rv d1"><span class="n">2</span><h4>Commerces : MADIGIPAIE</h4><p>Accord du 6 juillet 2026 entre l'État et la mairie : une plateforme de paiement des taxes par QR code, pensée pour les commerçants.</p></div>
+      <div class="rv d2"><span class="n">3</span><h4>Transport : vignettes QR</h4><p>Chaque taxi, taxi-bus ou camion reçoit une vignette numérique vérifiable par les agents de contrôle comme par les passagers.</p></div>
+    </div>
+    <div style="display:flex;gap:.7rem;flex-wrap:wrap;justify-content:center;margin-top:2rem"><a class="btn btn-orange" href="#payer">Payer mes droits de place</a><a class="btn btn-ghost" href="https://etax-libreville.ga/" target="_blank" rel="noopener">Plateforme e-Tax de la commune</a></div>
+  </div>
+</section>
+
+<div id="site-footer"></div>
+<script src="assets/js/data.js"></script>
+<script src="assets/js/config.js"></script>
+<script src="assets/js/store.js"></script>
+<script src="assets/js/main.js"></script>
+</body>
+</html>

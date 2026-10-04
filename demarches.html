@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="only light">
+<meta name="theme-color" content="#06363f">
+<title>Démarches en ligne – Mairie de Libreville</title>
+<meta name="description" content="Démarches en ligne de la Mairie de Libreville : état civil, mariage, vignettes, marchés, urbanisme, rendez-vous au guichet, signalements. Paiement Airtel Money, Moov Money ou carte.">
+<meta property="og:title" content="Démarches en ligne – Mairie de Libreville">
+<meta property="og:description" content="Démarches en ligne à la Mairie de Libreville : actes d'état civil, mariage, urbanisme, domaine public, signalements, demande d'audience et suivi de dossier.">
+<meta property="og:image" content="assets/img/front-de-mer.jpg">
+<link rel="icon" href="assets/img/logo-lbv.svg">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="assets/img/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body data-page="demarches">
+<div class="flagbar"></div>
+<div id="site-header"></div>
+
+<section class="page-hero">
+  <img class="bg" src="assets/img/bd-independance.jpg" alt="">
+  <div class="wrap">
+    <p class="crumbs"><a href="index.html">Accueil</a> › Démarches</p>
+    <span class="eyebrow">Mairie numérique</span>
+    <h1>Vos démarches en ligne, suivies pas à pas</h1>
+    <p>Choisissez votre démarche, joignez vos pièces, payez par Airtel Money, Moov Money, carte bancaire ou à la mairie, réservez un créneau au guichet, puis téléchargez votre document dès qu'il est prêt.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="tabs" id="dem-tabs"></div>
+    <div class="cards" id="dem-grid"></div>
+  </div>
+</section>
+
+<section class="bg-white" id="demande">
+  <div class="wrap split" style="align-items:start">
+    <div>
+      <span class="eyebrow rv">Dépôt en ligne</span>
+      <h2 class="rv d1" style="font-size:clamp(1.7rem,3.2vw,2.4rem);color:var(--navy);margin:.6rem 0 1rem">Faire une demande</h2>
+      <p class="lead-p rv d2">Votre demande est transmise directement au service concerné de votre arrondissement. Vous êtes informé(e) de chaque étape et, une fois le document prêt, vous le téléchargez sans vous déplacer.</p>
+      <ul class="checks rv d2">
+        <li>Un numéro de dossier unique remis immédiatement</li>
+        <li>Suivi en ligne, à tout moment</li>
+        <li>Paiement en ligne par Airtel Money, Moov Money ou carte, ou à la mairie</li><li>Rendez-vous au guichet à l'heure choisie, sans file d'attente</li>
+        <li>Document téléchargeable en PDF dès qu'il est prêt</li>
+        <li>Pièces justificatives jointes directement en ligne</li>
+      </ul>
+      <div class="panel rv d3" id="dem-info" style="box-shadow:none;font-size:.9rem;color:var(--muted)"></div>
+    </div>
+    <form class="panel form" id="demande-form" novalidate>
+      <div class="steps"><span></span><span></span><span></span><span></span></div>
+      <div class="fstep">
+        <h3 style="color:var(--navy)">1. Votre démarche</h3>
+        <div class="field"><label for="type">Démarche</label><select id="type" name="type" required></select></div>
+        <div class="field"><label for="arr">Arrondissement concerné</label><select id="arr" name="arr" required></select></div>
+        <button class="btn btn-navy" type="button" data-next>Continuer</button>
+      </div>
+      <div class="fstep">
+        <h3 style="color:var(--navy)">2. Vos coordonnées</h3>
+        <div class="row"><div class="field"><label for="prenom">Prénom(s)</label><input id="prenom" name="prenom" required autocomplete="given-name"></div><div class="field"><label for="nom">Nom</label><input id="nom" name="nom" required autocomplete="family-name"></div></div>
+        <div class="row"><div class="field"><label for="tel">Téléphone</label><input id="tel" name="tel" type="tel" required placeholder="077 00 00 00" autocomplete="tel"></div><div class="field"><label for="email">E-mail (facultatif)</label><input id="email" name="email" type="email" autocomplete="email"></div></div>
+        <div class="field"><label for="quartier">Quartier</label><input id="quartier" name="quartier" list="quartiers" required placeholder="Ex. Nkembo, Akébé, Nzeng-Ayong… (l'arrondissement est proposé automatiquement)"><datalist id="quartiers"></datalist></div>
+        <div style="display:flex;gap:.6rem"><button class="btn btn-line" type="button" data-prev>Retour</button><button class="btn btn-navy" type="button" data-next>Continuer</button></div>
+      </div>
+      <div class="fstep">
+        <h3 style="color:var(--navy)">3. Précisions</h3>
+        <div id="acte-fields" class="acte-box" hidden>
+          <p class="ab-h"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M8.5 12l2.5 2.5 4.5-5"/></svg><b>Document de référence</b></p>
+          <div class="field" id="ta-field"><label for="typeActe">Type de document</label><select id="typeActe" name="typeActe"></select></div>
+          <div class="row"><div class="field"><label for="numActe" id="acte-label">Numéro de l'acte</label><input id="numActe" name="numActe" placeholder="Ex. 0312/2004"></div><div class="field"><label for="nomActe">Nom inscrit sur l'acte</label><input id="nomActe" name="nomActe" placeholder="Si différent du vôtre"></div></div>
+          <button type="button" class="btn btn-line btn-sm" id="verif">Vérifier le numéro</button>
+          <div id="acte-res"></div>
+        </div>
+        <div id="rdv-fields" class="acte-box" hidden><p class="ab-h"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><b>Choisissez votre créneau</b></p><div class="field"><label for="rdvjour">Jour</label><input id="rdvjour" name="rdvjour" type="date"></div><label style="font-size:.85rem;font-weight:600;color:var(--navy)">Heure (les créneaux barrés sont déjà réservés)</label><div class="slots" id="slots"></div><input type="text" name="rdvheure" class="sr-only" tabindex="-1" aria-label="Heure choisie"></div>
+        <div id="std-fields"><div class="field"><label for="details">Précisions utiles (nom de la personne concernée, date de l'acte, objet de l'audience…)</label><textarea id="details" name="details"></textarea></div></div>
+        <div id="sig-fields" hidden>
+          <div class="field"><label for="sigtype">Type de problème</label><select id="sigtype" name="sigtype" data-req="1"></select></div>
+          <div class="field"><label for="lieu">Lieu précis (rue, repère)</label><input id="lieu" name="lieu" data-req="1" placeholder="Ex. derrière l'école, près du marché…"></div>
+          <div class="field"><label for="description">Description</label><textarea id="description" name="description" data-req="1"></textarea></div>
+        </div>
+        <div class="field"><label for="pj" id="pj-label">Pièces justificatives (facultatif)</label><label class="dropzone" for="pj"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg><span><b>Ajouter des fichiers</b><small>Photos ou PDF · 3 fichiers maximum · les photos sont allégées automatiquement</small></span></label><input id="pj" name="pj" type="file" multiple accept="image/*,application/pdf" class="sr-only"><div class="pjlist" id="pj-list"></div></div>
+        <div style="display:flex;gap:.6rem"><button class="btn btn-line" type="button" data-prev>Retour</button><button class="btn btn-navy" type="button" data-next>Continuer</button></div>
+      </div>
+      <div class="fstep">
+        <h3 style="color:var(--navy)">4. Paiement</h3>
+        <div id="pay-step"></div>
+        <label style="display:flex;gap:.6rem;font-size:.86rem;color:var(--muted)"><input type="checkbox" required style="margin-top:.25rem"> J'accepte que mes informations soient utilisées par la mairie pour traiter ma demande.</label>
+        <div style="display:flex;gap:.6rem;flex-wrap:wrap"><button class="btn btn-line" type="button" data-prev>Retour</button><button class="btn btn-orange" type="submit">Valider ma demande</button></div>
+      </div>
+    </form>
+  </div>
+</section>
+
+<section class="bg-navy" id="authentification">
+  <div class="wrap">
+    <div class="center"><div class="sec-head"><span class="eyebrow">Documents authentifiés</span><h2>L'original, une seule fois. Ensuite, tout en ligne.</h2><p>Chaque acte (naissance, mariage, décès) et document officiel a un numéro. Dès que son original a été vérifié au guichet, la plateforme le reconnaît : le badge 🛡 « Authentifié » s'affiche et l'original ne vous est plus jamais demandé.</p></div></div>
+    <div class="steps3">
+      <div class="rv"><span class="n">1</span><h4>Première demande en ligne</h4><p>Indiquez le numéro de votre acte de naissance (ou du document concerné) dans votre demande.</p></div>
+      <div class="rv d1"><span class="n">2</span><h4>Une seule visite avec l'original</h4><p>L'agent vérifie l'original au guichet et valide le numéro : votre acte devient « Authentifié ».</p></div>
+      <div class="rv d2"><span class="n">3</span><h4>Ensuite, 100 % en ligne</h4><p>Copies, duplicatas, renouvellements, légalisations : vous faites tout en ligne et passez seulement récupérer à la mairie.</p></div>
+    </div>
+    <div class="auth-check rv">
+      <form class="form" id="auth-form"><h3>Mon document est-il authentifié ?</h3>
+        <div class="row"><div class="field"><label for="anum">Numéro du document</label><input id="anum" name="num" required placeholder="Ex. 0312/2004"></div><div class="field"><label for="anom">Nom inscrit sur le document</label><input id="anom" name="nom" required placeholder="Ex. Mengue"></div></div>
+        <div class="row"><div class="field"><label for="atype">Type</label><select id="atype" name="type"></select></div><div class="field"><label>&nbsp;</label><button class="btn btn-orange" style="justify-content:center">Vérifier</button></div></div>
+        <p class="imgnote">Démonstration : <b>0312/2004</b> au nom de <b>Mengue</b> (authentifié) ou <b>1187/1998</b> au nom d'<b>Ogoula</b> (à authentifier).</p>
+      </form>
+      <div id="auth-out"></div>
+    </div>
+  </div>
+</section>
+
+<section id="suivi">
+  <div class="wrap suivi-box">
+    <div>
+      <span class="eyebrow rv">Suivi de dossier</span>
+      <h2 class="rv d1" style="font-size:clamp(1.7rem,3.2vw,2.4rem);color:var(--navy);margin:.6rem 0 1rem">Suivre, payer, télécharger</h2>
+      <p class="lead-p rv d2">Saisissez le numéro reçu lors du dépôt (format <b>LBV-26-…</b> pour une démarche, <b>SIG-26-…</b> pour un signalement).</p>
+      <form class="form rv d2" id="suivi-form" style="margin-top:1.4rem"><div class="field"><label for="ref">Numéro de dossier</label><input id="ref" name="ref" required placeholder="LBV-26-01234" style="text-transform:uppercase"></div><div class="field"><label for="stel">Téléphone donné lors de la demande</label><input id="stel" name="tel" type="tel" required placeholder="077 12 34 56"></div><button class="btn btn-navy" style="justify-content:center">Rechercher mon dossier</button></form>
+      <p class="imgnote" style="margin-top:.8rem">Démonstration : dossier <b>LBV-26-01234</b> avec le téléphone <b>077 12 34 56</b> (document prêt à télécharger), <b>LBV-26-01235</b> / <b>074 55 66 77</b> (à payer).</p>
+    </div>
+    <div id="suivi-out"><div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><p>Le détail de votre dossier s'affichera ici.</p></div></div>
+  </div>
+</section>
+
+<div id="site-footer"></div>
+<script src="assets/js/data.js"></script>
+<script src="assets/js/config.js"></script>
+<script src="assets/js/store.js"></script>
+<script src="assets/js/main.js"></script>
+</body>
+</html>

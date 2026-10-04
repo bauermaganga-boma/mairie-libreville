@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="only light">
+<meta name="theme-color" content="#06363f">
+<title>Les 6 arrondissements – Mairie de Libreville</title>
+<meta name="description" content="Les six mairies d'arrondissement de Libreville : maires, adjoints, quartiers, carte et démarches de proximité.">
+<meta property="og:title" content="Les 6 arrondissements – Mairie de Libreville">
+<meta property="og:description" content="Les six mairies d'arrondissement de Libreville : maires, adjoints, quartiers, carte et démarches de proximité.">
+<meta property="og:image" content="assets/img/bord-de-mer.jpg">
+<link rel="icon" href="assets/img/logo-lbv.svg">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="assets/img/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body data-page="arrondissements">
+<div class="flagbar"></div>
+<div id="site-header"></div>
+
+
+<section class="page-hero">
+  <img class="bg" src="assets/img/bord-de-mer.jpg" alt="" style="object-position:center">
+  <div class="wrap">
+    <p class="crumbs"><a href="index.html">Accueil</a> › Arrondissements</p>
+    <span class="eyebrow">Proximité</span>
+    <h1>Six mairies d'arrondissement près de chez vous</h1>
+    <p>De Haut-de-Gué-Gué à Nzeng-Ayong : chaque arrondissement a sa mairie, son maire et deux adjoints, installés en novembre 2025, et une dotation 2026 d'environ 230 millions FCFA.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap mapbox">
+    <div class="rv"><div id="lbvmap"></div><p class="mapnote">Plan schématique, non contractuel : touchez un arrondissement pour l'afficher.</p></div>
+    <div class="finder rv d1" id="finder">
+      <span class="eyebrow">Trouver ma mairie</span>
+      <h3>Dans quel arrondissement j'habite ?</h3>
+      <p>Tapez le nom de votre quartier : le site vous indique votre mairie d'arrondissement et son maire.</p>
+      <div class="srch"><input type="search" placeholder="Ex. Louis, Akébé, Glass, PK8…" aria-label="Votre quartier"></div>
+      <div class="res"></div>
+      <div class="chips"></div>
+    </div>
+  </div>
+</section>
+
+<section class="bg-white">
+  <div class="wrap">
+    <div class="sec-head"><div><span class="eyebrow rv">Une capitale, six mairies</span><h2 class="rv d1">Les mairies d'arrondissement et leurs équipes</h2></div><p class="rv d2">Même dotation, mêmes outils, mêmes démarches en ligne : chaque arrondissement est traité à égalité.</p></div>
+    <div class="arr-grid" id="arr-grid"></div>
+  </div>
+</section>
+<section id="focus-sec">
+  <div class="wrap">
+    <div class="tabs tabs-sm" id="arr-tabs"></div>
+    <div id="arr-focus"></div>
+    <p class="imgnote" style="margin-top:1.4rem">Maires et adjoints : installation des 19 et 20 novembre 2025 (Gabon Infos Live). Quartiers : repères indicatifs, à valider avec chaque mairie. Photos d'illustration.</p>
+  </div>
+</section>
+<section style="padding-top:0">
+  <div class="wrap">
+    <div class="band rv">
+      <div><span class="eyebrow">Pilotage</span><h2>Les mêmes outils pour les six mairies d'arrondissement</h2><p>Demandes, rendez-vous, signalements, état civil, recettes, chantiers et indicateurs : chaque maire d'arrondissement suit son territoire et se compare à la moyenne de la commune ; le maire central coordonne.</p></div>
+      <a class="btn btn-orange" href="espace.html?role=arrondissement">Espace des arrondissements</a>
+    </div>
+  </div>
+</section>
+
+<div id="site-footer"></div>
+<script src="assets/js/data.js"></script>
+<script src="assets/js/config.js"></script>
+<script src="assets/js/store.js"></script>
+<script src="assets/js/main.js"></script>
+</body>
+</html>

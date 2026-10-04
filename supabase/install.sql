@@ -1,0 +1,341 @@
+-- =====================================================================
+--  Mairie de Libreville · Base de données Supabase
+--  À exécuter UNE FOIS dans : Supabase > SQL Editor > New query > Run
+--  Modèle : une table « records » (rubrique + arrondissement + contenu JSON),
+--  des profils d'agents avec rôle et périmètre, des règles de sécurité (RLS).
+-- =====================================================================
+create extension if not exists pgcrypto with schema extensions;
+
+-- ---------------------------------------------------------------------
+-- 1. Tables
+-- ---------------------------------------------------------------------
+create table if not exists public.profiles (
+  id     uuid primary key references auth.users on delete cascade,
+  role   text not null check (role in ('maire','sg','etatcivil','technique','finances','rh','arrondissement')),
+  arr    int  not null default 0 check (arr between 0 and 4),   -- 0 = toute la commune
+  login  text not null unique,
+  prenom text not null,
+  nom    text not null,
+  titre  text
+);
+
+create table if not exists public.records (
+  id         text primary key,
+  col        text not null check (col in ('authentifications','demandes','signalements','actes','agenda','recettes','agents','stocks','chantiers','publications','contacts','journal')),
+  arr        int  not null default 0 check (arr between 0 and 4),
+  data       jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+create index if not exists records_col_idx on public.records (col, created_at desc);
+create index if not exists records_ref_idx on public.records ((data->>'ref'));
+create index if not exists records_num_idx on public.records ((data->>'num')) where col = 'authentifications';
+
+create sequence if not exists public.demande_seq start 1;
+create sequence if not exists public.signal_seq start 1;
+
+-- ---------------------------------------------------------------------
+-- 2. Droits : quel rôle voit quelle rubrique
+-- ---------------------------------------------------------------------
+create or replace function public.me() returns public.profiles
+language sql stable security definer set search_path = public as $$ select * from profiles where id = auth.uid() $$;
+
+create or replace function public.can_col(p_col text, p_arr int) returns boolean
+language plpgsql stable security definer set search_path = public as $$
+declare p profiles;
+begin
+  select * into p from profiles where id = auth.uid();
+  if p.id is null then return false; end if;
+  if p.role in ('maire','sg') then return true; end if;
+  if p.arr <> 0 and p_arr <> p.arr then return false; end if;      -- un arrondissement ne voit que le sien
+  return case p.role
+    when 'etatcivil'      then p_col in ('authentifications','demandes','actes','stocks','journal')
+    when 'technique'      then p_col in ('signalements','chantiers','stocks','journal')
+    when 'finances'       then p_col in ('recettes','vignettes','chantiers','stocks','journal')
+    when 'rh'             then p_col in ('agents','journal')
+    when 'arrondissement' then p_col in ('authentifications','demandes','signalements','actes','agenda','recettes','chantiers','stocks','publications','contacts','journal')
+    else false end;
+end $$;
+
+alter table public.profiles enable row level security;
+alter table public.records  enable row level security;
+
+drop policy if exists "profils lisibles par les agents" on public.profiles;
+create policy "profils lisibles par les agents" on public.profiles for select to authenticated using (true);
+
+drop policy if exists "lecture selon le rôle" on public.records;
+create policy "lecture selon le rôle" on public.records for select to authenticated using (can_col(col, arr));
+drop policy if exists "création selon le rôle" on public.records;
+create policy "création selon le rôle" on public.records for insert to authenticated with check (can_col(col, arr) or col = 'journal');
+drop policy if exists "modification selon le rôle" on public.records;
+create policy "modification selon le rôle" on public.records for update to authenticated using (can_col(col, arr) and col <> 'journal') with check (can_col(col, arr));
+drop policy if exists "suppression selon le rôle" on public.records;
+create policy "suppression selon le rôle" on public.records for delete to authenticated using (can_col(col, arr) and col <> 'journal');
+
+-- ---------------------------------------------------------------------
+-- 3. Fonctions publiques (site) : dépôt, suivi, publications
+-- ---------------------------------------------------------------------
+create or replace function public.submit_public(p_col text, p_arr int, p_data jsonb) returns text
+language plpgsql security definer set search_path = public as $$
+declare ref text; yr text := to_char(now(), 'YY'); first text; d jsonb;
+begin
+  if p_col not in ('demandes','signalements','contacts') then raise exception 'Rubrique non autorisée'; end if;
+  if length(p_data::text) > 4500000 then raise exception 'Pièces jointes trop volumineuses (3 Mo maximum)'; end if;
+  d := p_data - 'id' - 'statut' - 'historique' - 'ref' - 'document';
+  if d ? 'paiement' then d := jsonb_set(d, '{paiement,statut}', case when coalesce((d->>'montant')::numeric, 0) > 0 then '"À régler"'::jsonb else '"Gratuit"'::jsonb end); end if;
+  if p_col = 'demandes' and coalesce(p_data->>'numActe','') <> '' then
+    declare a jsonb := _find_acte(p_data->>'numActe', coalesce(p_data->>'nomActe', p_data->>'nom'), coalesce(p_data->>'typeActe','tout'));
+    begin
+      if a is null then
+        a := jsonb_build_object('num', _normnum(p_data->>'numActe'), 'numAff', trim(p_data->>'numActe'), 'type', coalesce(nullif(p_data->>'typeActe','tout'),'naissance'), 'nom', coalesce(p_data->>'nomActe', p_data->>'nom'), 'statut', 'En attente');
+        insert into records(id, col, arr, data) values ('a' || replace(gen_random_uuid()::text,'-',''), 'authentifications', greatest(0, least(4, coalesce(p_arr,0))),
+          a || jsonb_build_object('prenoms', p_data->>'prenom', 'tel', p_data->>'tel', 'source', 'en ligne', 'date', now(), 'historique', jsonb_build_array(jsonb_build_object('date', now(), 't', 'Numéro déclaré en ligne : en attente de présentation de l''original.'))));
+      end if;
+      d := d - 'numActe' - 'nomActe' - 'typeActe' || jsonb_build_object('acte', jsonb_build_object('num', a->>'num', 'numAff', a->>'numAff', 'type', a->>'type', 'nom', a->>'nom', 'statut', a->>'statut', 'authDate', a->>'authDate'));
+    end;
+  end if;
+  if p_col = 'demandes' then ref := 'LBV-' || yr || '-' || lpad(nextval('demande_seq')::text, 5, '0'); first := 'Nouvelle';
+  elsif p_col = 'signalements' then ref := 'SIG-' || yr || '-' || lpad(nextval('signal_seq')::text, 4, '0'); first := 'Nouveau'; end if;
+  if ref is not null then
+    d := d || jsonb_build_object('ref', ref, 'statut', first, 'date', now(),
+      'historique', jsonb_build_array(jsonb_build_object('date', now(), 'statut', first, 'note', case when p_col = 'demandes' then 'Demande reçue en ligne.' else 'Signalement reçu.' end, 'pub', true)));
+  else d := d || jsonb_build_object('date', now(), 'lu', false); end if;
+  insert into records(id, col, arr, data) values (substr(p_col,1,1) || replace(gen_random_uuid()::text,'-',''), p_col, greatest(0, least(4, coalesce(p_arr,0))), d);
+  return ref;
+end $$;
+
+-- Documents authentifiés : l'original est vérifié une seule fois au guichet, ensuite le numéro est reconnu
+create or replace function public._normnum(t text) returns text language sql immutable as $ select upper(regexp_replace(regexp_replace(coalesce(t,''), 'N[°O]\.?\s*', '', 'gi'), '\s+', '', 'g')) $;
+create or replace function public._normnom(t text) returns text language sql immutable as $ select regexp_replace(lower(translate(coalesce(t,''), 'ÀÂÄÉÈÊËÎÏÔÖÙÛÜÇàâäéèêëîïôöùûüç', 'AAAEEEEIIOOUUUCaaaeeeeiioouuuc')), '[^a-z]', '', 'g') $;
+create or replace function public._find_acte(p_num text, p_nom text, p_type text) returns jsonb
+language sql stable security definer set search_path = public as $
+  select coalesce(
+    (select jsonb_build_object('num', data->>'num', 'numAff', data->>'numAff', 'type', data->>'type', 'nom', data->>'nom', 'prenoms', data->>'prenoms', 'statut', data->>'statut', 'authDate', data->>'authDate', 'source', data->>'source')
+       from records where col = 'authentifications' and data->>'num' = _normnum(p_num) and (_normnom(p_nom) = '' or _normnom(data->>'nom') = _normnom(p_nom))
+         and (coalesce(p_type,'tout') = 'tout' or data->>'type' = p_type) order by (data->>'statut' = 'Authentifié') desc limit 1),
+    (select jsonb_build_object('num', _normnum(data->>'num'), 'numAff', data->>'num', 'type', data->>'type', 'nom', data->>'nom', 'prenoms', data->>'prenoms', 'statut', 'Authentifié', 'authDate', data->>'date', 'source', 'registre')
+       from records where col = 'actes' and _normnum(data->>'num') = _normnum(p_num) and (_normnom(p_nom) = '' or _normnom(data->>'nom') = _normnom(p_nom)) limit 1))
+$;
+revoke all on function public._find_acte(text,text,text) from public, anon, authenticated;
+create or replace function public.verif_document(p_num text, p_nom text, p_type text) returns jsonb
+language plpgsql stable security definer set search_path = public as $
+declare a jsonb;
+begin
+  if length(_normnom(p_nom)) < 2 then return null; end if;   -- le nom est obligatoire pour une vérification publique
+  a := _find_acte(p_num, p_nom, p_type);
+  if a is null then return null; end if;
+  return jsonb_build_object('numAff', a->>'numAff', 'type', a->>'type', 'statut', a->>'statut', 'authDate', a->>'authDate', 'source', a->>'source',
+    'titulaire', upper(left(coalesce(a->>'prenoms',''), 1)) || '. ' || upper(a->>'nom'));
+end $;
+
+-- Statistiques agrégées par arrondissement (aucune donnée personnelle) : classement des 4 mairies
+create or replace function public.stats_arrondissements(p_from timestamptz) returns jsonb
+language sql stable security definer set search_path = public as $
+  with d as (select arr, data, (data->>'date')::timestamptz dt,
+                    (select min((h->>'date')::timestamptz) from jsonb_array_elements(data->'historique') h where h->>'statut' in ('Prête','Remise','Rejetée')) fin
+               from records where col = 'demandes' and (data->>'date')::timestamptz >= p_from),
+       r as (select arr, (data->>'montant')::numeric m, data->>'mode' mode from records where col = 'recettes' and (data->>'date')::timestamptz >= p_from),
+       s as (select arr, data->>'statut' st from records where col = 'signalements' and (data->>'date')::timestamptz >= p_from)
+  select coalesce(jsonb_agg(x order by (x->>'arr')::int), '[]'::jsonb) from (
+    select jsonb_build_object('arr', a,
+      'demandes', (select count(*) from d where arr = a),
+      'delai', (select avg(extract(epoch from fin - dt) / 86400) from d where arr = a and fin is not null),
+      'traitees', (select coalesce(100.0 * count(*) filter (where fin is not null) / nullif(count(*), 0), 0) from d where arr = a),
+      'recettes', (select coalesce(sum(m), 0) from r where arr = a),
+      'online', (select coalesce(100 * sum(m) filter (where mode in ('Airtel Money','Moov Money','Carte bancaire')) / nullif(sum(m), 0), 0) from r where arr = a),
+      'resolus', (select coalesce(100.0 * count(*) filter (where st = 'Résolu') / nullif(count(*), 0), 0) from s where arr = a),
+      'enLigne', (select coalesce(100.0 * count(*) filter (where data->'acte'->>'statut' = 'Authentifié') / nullif(count(*), 0), 0) from d where arr = a)) x
+    from generate_series(1, 4) a) t
+$;
+
+-- Suivi : numéro de dossier + 6 derniers chiffres du téléphone (protège les documents d'état civil)
+drop function if exists public.suivi_dossier(text);
+create or replace function public._telkey(t text) returns text language sql immutable as $$ select right(regexp_replace(coalesce(t,''), '\D', '', 'g'), 6) $$;
+create or replace function public._pub(r public.records) returns jsonb language sql stable as $$
+  select jsonb_build_object('ref', r.data->>'ref', 'acte', r.data->'acte', 'typeId', r.data->>'type', 'type', r.data->>'typeLabel', 'statut', r.data->>'statut', 'date', r.data->>'date', 'arr', r.arr,
+    'prenom', r.data->>'prenom', 'nom', r.data->>'nom', 'quartier', r.data->>'quartier', 'montant', coalesce((r.data->>'montant')::numeric, 0),
+    'paiement', r.data->'paiement', 'document', r.data->'document',
+    'historique', coalesce((select jsonb_agg(h) from jsonb_array_elements(r.data->'historique') h where (h->>'pub')::boolean), '[]'::jsonb))
+$$;
+create or replace function public.suivi_dossier(p_ref text, p_tel text) returns jsonb
+language sql stable security definer set search_path = public as $$
+  select _pub(r) from records r where col in ('demandes','signalements') and data->>'ref' = upper(trim(p_ref))
+    and length(_telkey(p_tel)) = 6 and _telkey(data->>'tel') = _telkey(p_tel) limit 1
+$$;
+
+-- Paiement en ligne. DÉMONSTRATION : confirmé depuis le navigateur.
+-- EN PRODUCTION : n'appeler cette fonction que depuis le webhook signé du prestataire de paiement
+-- (Airtel Money, agrégateur type E-Billing, banque), jamais directement depuis le site.
+create or replace function public.pay_public(p_ref text, p_tel text, p_mode text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare r records; q text := 'Q-' || to_char(now(), 'YY') || '-' || lpad((floor(random() * 1e6))::text, 6, '0'); m numeric;
+begin
+  if p_mode not in ('Airtel Money','Moov Money','Carte bancaire') then raise exception 'Moyen de paiement non autorisé'; end if;
+  select * into r from records where col = 'demandes' and data->>'ref' = upper(trim(p_ref)) and length(_telkey(p_tel)) = 6 and _telkey(data->>'tel') = _telkey(p_tel) for update;
+  if r.id is null then raise exception 'Dossier introuvable'; end if;
+  if r.data->'paiement'->>'statut' = 'Payé' then return _pub(r); end if;
+  m := coalesce((r.data->>'montant')::numeric, 0);
+  if m <= 0 then raise exception 'Démarche gratuite'; end if;
+  update records set data = jsonb_set(jsonb_set(data, '{paiement}', jsonb_build_object('choix','en ligne','statut','Payé','mode',p_mode,'date',now(),'quittance',q,
+      'transaction', case p_mode when 'Airtel Money' then 'AM' when 'Moov Money' then 'MM' else 'CB' end || floor(random()*1e9)::text)),
+    '{historique}', coalesce(data->'historique','[]'::jsonb) || jsonb_build_array(jsonb_build_object('date', now(), 'statut', data->>'statut', 'note', 'Paiement reçu (' || p_mode || ') : ' || m || ' FCFA.', 'pub', true)))
+    where id = r.id returning * into r;
+  insert into records(id, col, arr, data) values ('r' || replace(gen_random_uuid()::text,'-',''), 'recettes', r.arr, jsonb_build_object('quittance', q,
+    'nature', case r.data->>'type' when 'permis' then 'Permis de construire' when 'domaine' then 'Occupation du domaine public' when 'place' then 'Droits de place (marchés)' else 'Frais d''actes d''état civil' end,
+    'montant', m, 'payeur', (r.data->>'prenom') || ' ' || (r.data->>'nom'), 'mode', p_mode, 'agent', 'Paiement en ligne', 'date', now()));
+  return _pub(r);
+end $$;
+
+create or replace function public.mark_downloaded(p_ref text, p_tel text) returns void
+language sql security definer set search_path = public as $$
+  update records set data = jsonb_set(jsonb_set(data, '{statut}', '"Remise"'), '{historique}', coalesce(data->'historique','[]'::jsonb)
+    || jsonb_build_array(jsonb_build_object('date', now(), 'statut', 'Remise', 'note', 'Document téléchargé en ligne par le demandeur.', 'pub', true)))
+  where col = 'demandes' and data->>'ref' = upper(trim(p_ref)) and length(_telkey(p_tel)) = 6 and _telkey(data->>'tel') = _telkey(p_tel) and data->>'statut' = 'Prête'
+$$;
+
+create or replace function public.public_publications() returns setof public.records
+language sql stable security definer set search_path = public as $$
+  select * from records where col = 'publications' and (data->>'publie')::boolean order by created_at desc limit 50
+$$;
+
+grant execute on function public.verif_document(text,text,text), public.stats_arrondissements(timestamptz) to anon, authenticated;
+grant execute on function public.submit_public(text,int,jsonb), public.suivi_dossier(text,text), public.pay_public(text,text,text), public.mark_downloaded(text,text), public.public_publications() to anon, authenticated;
+
+-- ---------------------------------------------------------------------
+-- 4. Comptes agents
+-- ---------------------------------------------------------------------
+create or replace function public._create_user(p_login text, p_password text, p_role text, p_arr int, p_prenom text, p_nom text, p_titre text default null) returns uuid
+language plpgsql security definer set search_path = public, extensions as $$
+declare uid uuid := gen_random_uuid(); em text := lower(trim(p_login)) || '@mairie-lbv.local';
+begin
+  if length(coalesce(p_password,'')) < 6 then raise exception 'Le mot de passe doit contenir au moins 6 caractères'; end if;
+  if exists(select 1 from profiles where lower(login) = lower(trim(p_login))) then raise exception 'Cet identifiant existe déjà'; end if;
+  insert into auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+    raw_app_meta_data, raw_user_meta_data, created_at, updated_at, confirmation_token, email_change, email_change_token_new, recovery_token)
+  values ('00000000-0000-0000-0000-000000000000', uid, 'authenticated', 'authenticated', em, crypt(p_password, gen_salt('bf')), now(),
+    '{"provider":"email","providers":["email"]}', '{}', now(), now(), '', '', '', '');
+  insert into auth.identities (id, user_id, provider_id, identity_data, provider, last_sign_in_at, created_at, updated_at)
+  values (gen_random_uuid(), uid, uid::text, jsonb_build_object('sub', uid::text, 'email', em, 'email_verified', true), 'email', now(), now(), now());
+  insert into profiles(id, role, arr, login, prenom, nom, titre) values (uid, p_role, coalesce(p_arr,0), trim(p_login), trim(p_prenom), trim(p_nom), nullif(p_titre,''));
+  return uid;
+end $$;
+revoke all on function public._create_user(text,text,text,int,text,text,text) from public, anon, authenticated;
+
+create or replace function public.admin_create_user(p_login text, p_password text, p_role text, p_arr int, p_prenom text, p_nom text, p_titre text default null) returns uuid
+language plpgsql security definer set search_path = public as $$
+begin
+  if (select role from profiles where id = auth.uid()) is distinct from 'sg' then raise exception 'Accès réservé au secrétariat général'; end if;
+  return _create_user(p_login, p_password, p_role, p_arr, p_prenom, p_nom, p_titre);
+end $$;
+create or replace function public.admin_set_password(p_user uuid, p_password text) returns void
+language plpgsql security definer set search_path = public, extensions as $$
+begin
+  if (select role from profiles where id = auth.uid()) is distinct from 'sg' then raise exception 'Accès réservé au secrétariat général'; end if;
+  if length(coalesce(p_password,'')) < 6 then raise exception 'Le mot de passe doit contenir au moins 6 caractères'; end if;
+  update auth.users set encrypted_password = crypt(p_password, gen_salt('bf')), updated_at = now() where id = p_user;
+end $$;
+create or replace function public.admin_delete_user(p_user uuid) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if (select role from profiles where id = auth.uid()) is distinct from 'sg' then raise exception 'Accès réservé au secrétariat général'; end if;
+  if p_user = auth.uid() then raise exception 'Vous ne pouvez pas supprimer votre propre compte'; end if;
+  delete from auth.users where id = p_user;
+end $$;
+revoke all on function public.admin_create_user(text,text,text,int,text,text,text), public.admin_set_password(uuid,text), public.admin_delete_user(uuid) from public, anon;
+grant execute on function public.admin_create_user(text,text,text,int,text,text,text), public.admin_set_password(uuid,text), public.admin_delete_user(uuid) to authenticated;
+
+
+-- ---------------------------------------------------------------------
+-- 4 bis. e-Services de Libreville : vignettes à QR code, taxes, rendez-vous
+-- ---------------------------------------------------------------------
+create or replace function public._plaque(t text) returns text language sql immutable as $ select regexp_replace(upper(coalesce(t,'')), '[^A-Z0-9]', '', 'g') $;
+
+-- Vérification publique d'une vignette (numéro ou immatriculation) : aucune donnée personnelle complète n'est renvoyée
+create or replace function public.verif_vignette(p_q text) returns jsonb
+language plpgsql stable security definer set search_path = public as $
+declare r records; nom text;
+begin
+  select * into r from records where col = 'vignettes' and (_plaque(data->>'num') = _plaque(p_q) or _plaque(data->>'plaque') = _plaque(p_q)) limit 1;
+  if r.id is null then return null; end if;
+  nom := coalesce(r.data->>'proprio', '');
+  return jsonb_build_object('num', r.data->>'num', 'cat', r.data->>'cat',
+    'catL', case r.data->>'cat' when 'TX' then 'Taxi' when 'TB' then 'Taxi-bus' else 'Transport de marchandises' end,
+    'plaque', r.data->>'plaque', 'titulaire', left(nom, 1) || '. ' || upper(split_part(nom, ' ', array_length(string_to_array(nom, ' '), 1))),
+    'debut', r.data->>'debut', 'fin', r.data->>'fin',
+    'etat', case when r.data->>'statut' = 'Suspendue' then 'Suspendue' when (r.data->>'fin')::date < current_date then 'Expirée' else 'Valide' end,
+    'controle', (select c from jsonb_array_elements(coalesce(r.data->'controles', '[]'::jsonb)) c order by c->>'date' desc limit 1));
+end $;
+
+-- Créneaux de rendez-vous déjà réservés (heures seulement)
+create or replace function public.rdv_pris(p_arr int, p_jour text) returns jsonb
+language sql stable security definer set search_path = public as $
+  select coalesce(jsonb_agg(data->'rdv'->>'heure'), '[]'::jsonb) from records
+  where col = 'demandes' and arr = p_arr and data->>'type' = 'rdv' and data->'rdv'->>'jour' = p_jour and data->>'statut' <> 'Rejetée' $;
+
+-- Paiement d'une taxe (simulation) : en production, appelée par le webhook du prestataire de paiement
+-- (Airtel Money, Moov Money, agrégateur, banque) ou raccordée à la plateforme e-Tax / MADIGIPAIE.
+create or replace function public.pay_taxe(p_data jsonb) returns jsonb
+language plpgsql security definer set search_path = public as $
+declare
+  t text := p_data->>'taxe'; mode text := p_data->>'mode'; qte int := greatest(1, least(12, coalesce((p_data->>'qte')::int, 1)));
+  prix numeric; nature text; libelle text; cat text; q text := 'Q-' || to_char(now(), 'YY') || '-' || lpad((floor(random() * 1e6))::text, 6, '0');
+  tr text; v records; vdata jsonb := null; debut date; n int; montant numeric;
+begin
+  if mode not in ('Airtel Money','Moov Money','Carte bancaire') then raise exception 'Moyen de paiement non autorisé'; end if;
+  select x.prix, x.nature, x.libelle, x.cat into prix, nature, libelle, cat from (values
+    ('vig-TX', 50000, 'Vignettes de transport', 'Vignette taxi', 'TX'),
+    ('vig-TB', 75000, 'Vignettes de transport', 'Vignette taxi-bus', 'TB'),
+    ('vig-TM', 100000, 'Vignettes de transport', 'Vignette transport de marchandises', 'TM'),
+    ('place-j', 500, 'Droits de place (marchés)', 'Droit de place – journée', null),
+    ('place-m', 10000, 'Droits de place (marchés)', 'Droit de place – mois', null),
+    ('odp', 15000, 'Occupation du domaine public', 'Occupation du domaine public – mois', null),
+    ('pub', 50000, 'Taxe sur la publicité', 'Taxe sur la publicité – an', null)) x(id, prix, nature, libelle, cat) where x.id = t;
+  if prix is null then raise exception 'Taxe inconnue'; end if;
+  if cat is null then montant := prix * qte; else montant := prix; end if;
+  tr := case mode when 'Airtel Money' then 'AM' when 'Moov Money' then 'MM' else 'CB' end || floor(random() * 1e9)::text;
+  if cat is not null then
+    if length(_plaque(p_data->>'ref')) < 5 then raise exception 'Immatriculation invalide'; end if;
+    select * into v from records where col = 'vignettes' and _plaque(data->>'plaque') = _plaque(p_data->>'ref') and data->>'cat' = cat limit 1;
+    if v.id is not null then
+      debut := greatest(current_date, (v.data->>'fin')::date + 1);
+      update records set data = data || jsonb_build_object('fin', (debut + interval '1 year' - interval '1 day')::date, 'statut', 'Active', 'quittance', q) where id = v.id returning data into vdata;
+    else
+      select count(*) + 1 into n from records where col = 'vignettes' and data->>'cat' = cat;
+      vdata := jsonb_build_object('num', 'LBV-' || cat || '-' || lpad(n::text, 4, '0'), 'cat', cat, 'plaque', upper(trim(p_data->>'ref')), 'proprio', p_data->>'nom', 'tel', p_data->>'tel',
+        'debut', current_date, 'fin', (current_date + interval '1 year' - interval '1 day')::date, 'statut', 'Active', 'controles', '[]'::jsonb, 'quittance', q, 'date', now());
+      insert into records(id, col, arr, data) values ('v' || replace(gen_random_uuid()::text, '-', ''), 'vignettes', 0, vdata);
+    end if;
+  end if;
+  insert into records(id, col, arr, data) values ('r' || replace(gen_random_uuid()::text, '-', ''), 'recettes', coalesce((p_data->>'arr')::int, 0),
+    jsonb_build_object('quittance', q, 'nature', nature, 'montant', montant, 'payeur', (p_data->>'nom') || ' · ' || coalesce(vdata->>'plaque', p_data->>'ref'), 'mode', mode,
+      'agent', 'Paiement en ligne (e-Tax)', 'date', now(), 'refTaxe', coalesce(vdata->>'num', p_data->>'ref'), 'transaction', tr));
+  return jsonb_build_object('quittance', q, 'transaction', tr, 'montant', montant, 'nature', nature, 'taxe', libelle || case when qte > 1 and cat is null then ' × ' || qte else '' end,
+    'ref', p_data->>'ref', 'nom', p_data->>'nom', 'mode', mode, 'date', now(), 'arr', coalesce((p_data->>'arr')::int, 0),
+    'vignette', case when vdata is null then null else verif_vignette(vdata->>'num') end);
+end $;
+
+grant execute on function public.verif_vignette(text), public.rdv_pris(int, text), public.pay_taxe(jsonb) to anon, authenticated;
+
+-- ---------------------------------------------------------------------
+-- 5. Temps réel
+-- ---------------------------------------------------------------------
+do $$ begin alter publication supabase_realtime add table public.records; exception when duplicate_object then null; end $$;
+
+-- ---------------------------------------------------------------------
+-- 6. Comptes de démonstration (à changer avant la mise en service)
+-- ---------------------------------------------------------------------
+do $$ begin
+  if not exists (select 1 from profiles) then
+    perform _create_user('maire','lbv2026','maire',0,'Cabinet','du Maire','Cabinet du maire');
+    perform _create_user('secretariat','admin2026','sg',0,'Secrétariat','Général','Administrateur');
+    perform _create_user('etat.civil','agent2026','etatcivil',0,'Service','État civil','Service central de l''état civil');
+    perform _create_user('services.techniques','agent2026','technique',0,'Services','techniques','Direction des services techniques');
+    perform _create_user('recettes','agent2026','finances',0,'Direction','des recettes','Recettes & e-Tax');
+    perform _create_user('rh','agent2026','rh',0,'Ressources','humaines','Ressources humaines');
+    perform _create_user('arr1','arr2026','arrondissement',1,'Mairie','du 1er arrondissement','Mairie du 1er arrondissement');
+    perform _create_user('arr2','arr2026','arrondissement',2,'Mairie','du 2e arrondissement','Mairie du 2e arrondissement');
+    perform _create_user('arr3','arr2026','arrondissement',3,'Mairie','du 3e arrondissement','Mairie du 3e arrondissement');
+    perform _create_user('arr4','arr2026','arrondissement',4,'Mairie','du 4e arrondissement','Mairie du 4e arrondissement');
+    perform _create_user('arr5','arr2026','arrondissement',5,'Mairie','du 5e arrondissement','Mairie du 5e arrondissement');
+    perform _create_user('arr6','arr2026','arrondissement',6,'Mairie','du 6e arrondissement','Mairie du 6e arrondissement');
+  end if;
+end $$;
